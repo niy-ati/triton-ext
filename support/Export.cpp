@@ -68,11 +68,9 @@ Result exportOp(const std::string opName, plugin::AddOpCallback addFunc) {
 using namespace triton::ext::support;
 using namespace mlir::triton;
 
-// TODO: because TritonExtensionSupport is a separate library, it will not be
-// built with TRITON_EXT_NAME or TRITON_EXT_CLASS defined. This means that we
-// cannot statically generate the name here. (Register it with the internal
-// API?)
-static const char *PLUGIN_NAME = "triton-ext-todo";
+// Each extension compiles this file into its own plugin library with
+// TRITON_EXT_NAME defined (see `configure_triton_extension`).
+static const char *PLUGIN_NAME = TOSTRING(TRITON_EXT_NAME);
 static const char *VERSION = "0.1.0";
 
 TRITON_PLUGIN_API plugin::PluginInfo *tritonGetPluginInfo() {
