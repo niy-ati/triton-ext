@@ -31,8 +31,8 @@ tt.func @param_loop(%out: !tt.ptr<f32>,
 //
 // Per-iter bytes = 256 * 4 = 1024, trip count = (args[2] - pid) ceildiv 170.
 // CHECK-LABEL: tt.func @persistent_loop(
-// CHECK-SAME:  %arg0: !tt.ptr<f32> {tai.op_count = "0", tai.store_bytes = "((args[2] - program_id[0]) ceildiv 170) * 1024"}
-// CHECK-SAME:  %arg1: !tt.ptr<f32> {tai.load_bytes = "((args[2] - program_id[0]) ceildiv 170) * 1024"}
+// CHECK-SAME:  %arg0: !tt.ptr<f32> {tai.op_count = "0", tai.store_bytes = "((args[2] - program_id[0] + 169) / 170) * 1024"}
+// CHECK-SAME:  %arg1: !tt.ptr<f32> {tai.load_bytes = "((args[2] - program_id[0] + 169) / 170) * 1024"}
 tt.func @persistent_loop(%out: !tt.ptr<f32>,
                          %in: !tt.ptr<f32>,
                          %num_tiles: i32) {

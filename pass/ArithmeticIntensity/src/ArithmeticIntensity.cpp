@@ -38,8 +38,8 @@
 // `s<N>` symbol tokens are rewritten to source-level names
 // (`args[N]`, `program_id[N]`, `num_programs[N]`), and the affine
 // printer's `floordiv`/`mod` keywords are rewritten to `/` and `%`.
-// `ceildiv` is not handled: the pass never produces it and
-// `simplifyAffineExpr` does not introduce it.
+// Python has no ceiling division, so `a ceildiv b` (from loop trip counts)
+// is printed as the equivalent `(a + b - 1) / b`.
 //
 // ## Metric model
 //
@@ -386,8 +386,8 @@ public:
   std::string print(AffineExpr expr) const {
     if (!expr)
       return "";
-    AffineExpr simplified = simplifyAffineExpr(expr, /*numDims=*/0,
-                                               /*numSymbols=*/values.size());
+    AffineExpr simplified = expandCeilDiv(simplifyAffineExpr(
+        expr, /*numDims=*/0, /*numSymbols=*/values.size()));
     std::string raw;
     {
       llvm::raw_string_ostream os(raw);
@@ -397,6 +397,19 @@ public:
   }
 
 private:
+  // Rewrite `a ceildiv b` to `(a + b - 1) floordiv b`, which is equal for the
+  // positive divisors affine expressions allow.
+  static AffineExpr expandCeilDiv(AffineExpr expr) {
+    auto binary = dyn_cast<AffineBinaryOpExpr>(expr);
+    if (!binary)
+      return expr;
+    AffineExpr lhs = expandCeilDiv(binary.getLHS());
+    AffineExpr rhs = expandCeilDiv(binary.getRHS());
+    if (expr.getKind() == AffineExprKind::CeilDiv)
+      return (lhs + rhs - 1).floorDiv(rhs);
+    return getAffineBinaryOpExpr(expr.getKind(), lhs, rhs);
+  }
+
   std::string nameForSymbol(unsigned idx) const {
     Value v = values[idx];
     if (auto blockArg = dyn_cast<BlockArgument>(v)) {
@@ -432,9 +445,6 @@ private:
         };
         if (tryKeyword("floordiv", "/"))
           continue;
-        // TODO: re-enable this when we have a way to represent ceildiv
-        // if (tryKeyword("ceildiv", "/"))
-        //  continue;
         if (tryKeyword("mod", "%"))
           continue;
         if (raw[i] == 's' && i + 1 < n &&
@@ -593,9 +603,8 @@ class ArithmeticIntensityAnalysisDriver {
     auto lowerBound = getSymbolicValue(forOp.getLowerBound());
     auto step = getSymbolicValue(forOp.getStep());
     // `scf.for` runs `ceil((ub - lb) / step)` iterations (step > 0), e.g. a
-    // persistent loop `range(pid, num_tiles, NUM_SMS)`. Written with
-    // floordiv so that the equation printer (which has no `ceildiv`) and
-    // the Python evaluator keep working.
+    // persistent loop `range(pid, num_tiles, NUM_SMS)`. The printer writes
+    // the `ceildiv` in floor-division form (see `SymTable::print`).
     return (upperBound - lowerBound).ceilDiv(step);
   }
 
